@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Lumina">
+  <meta name="theme-color" content="#0f0f12">
+  <meta name="description" content="프리미엄 한글 독서 앱 - 오프라인 지원 PWA">
+  <title>Lumina — 프리미엄 독서</title>
+
+  <!-- PWA Manifest (data URL) -->
+  <link rel="manifest" href='data:application/manifest+json,{"name":"Lumina Reader","short_name":"Lumina","description":"프리미엄 한글 독서 앱","start_url":"./index.html","display":"standalone","background_color":"#0f0f12","theme_color":"#0f0f12","orientation":"any","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Crect width=%22512%22 height=%22512%22 rx=%22100%22 fill=%22%231a1a22%22/%3E%3Cpath d=%22M140 120h180c40 0 70 30 70 70v200c0 20-15 35-35 35H175c-20 0-35-15-35-35V155c0-20 15-35 35-35z%22 fill=%22%23c9a66b%22 opacity=%220.9%22/%3E%3Cpath d=%22M160 140h140c30 0 50 20 50 50v180c0 12-10 22-22 22H182c-12 0-22-10-22-22V162c0-12 10-22 22-22z%22 fill=%22%230f0f12%22/%3E%3Cpath d=%22M190 200h100M190 240h80M190 280h90%22 stroke=%22%23c9a66b%22 stroke-width=%2214%22 stroke-linecap=%22round%22/%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]}'>
+
+  <!-- Apple Touch Icon -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 512 512%22%3E%3Crect width=%22512%22 height=%22512%22 rx=%22100%22 fill=%22%231a1a22%22/%3E%3Cpath d=%22M140 120h180c40 0 70 30 70 70v200c0 20-15 35-35 35H175c-20 0-35-15-35-35V155c0-20 15-35 35-35z%22 fill=%22%23c9a66b%22 opacity=%220.9%22/%3E%3Cpath d=%22M160 140h140c30 0 50 20 50 50v180c0 12-10 22-22 22H182c-12 0-22-10-22-22V162c0-12 10-22 22-22z%22 fill=%22%230f0f12%22/%3E%3Cpath d=%22M190 200h100M190 240h80M190 280h90%22 stroke=%22%23c9a66b%22 stroke-width=%2214%22 stroke-linecap=%22round%22/%3E%3C/svg%3E">
+
+  <!-- Korean fonts: Noto Serif KR (명조) / Noto Sans KR (고딕) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <!-- Libraries (CDN - first load required; then cached by SW where possible) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    :root {
+      --bg: #f7f5f0;
+      --bg-card: #ffffff;
+      --text: #1a1a1a;
+      --text-secondary: #5a5a5a;
+      --accent: #c9a66b;
+      --accent-soft: rgba(201, 166, 107, 0.15);
+      --border: rgba(0,0,0,0.08);
+      --shadow: 0 8px 32px rgba(0,0,0,0.08);
+      --radius: 16px;
+      --font-body: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+      --font-serif: "Noto Serif KR", "Apple Myungjo", "Nanum Myeongjo", "Batang", Georgia, serif;
+      --content-width: 680px;
+      --line-height: 1.95;
+      --letter-spacing: 0.025em;
+      --font-size: 17.5px;
+    }
+
+    .dark {
+      --bg: #0f0f12;
+      --bg-card: #1a1a22;
+      --text: #e8e6e3;
+      --text-secondary: #a0a0a8;
+      --accent: #d4b87a;
+      --accent-soft: rgba(212, 184, 122, 0.12);
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      height: 100%;
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    #app { height: 100%; position: relative; }
+
+    .hidden { display: none !important; }
+
+    /* ========== HOME ========== */
+    #home {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: 
+        radial-gradient(ellipse at 30% 20%, rgba(201,166,107,0.12) 0%, transparent 50%),
+        radial-gradient(ellipse at 70% 80%, rgba(201,166,107,0.08) 0%, transparent 45%),
+        var(--bg);
+    }
+
+    .logo {
+      width: 88px;
+      height: 88px;
+      margin-bottom: 20px;
+      border-radius: 22px;
+      background: linear-gradient(145deg, #1a1a22, #2a2a35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow);
+    }
+
+    .logo svg { width: 52px; height: 52px; }
+
+    .app-name {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      margin-bottom: 6px;
+      background: linear-gradient(135deg, var(--text) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .app-tagline {
+      font-size: 0.95rem;
+      color: var(--text-secondary);
+      margin-bottom: 48px;
+      letter-spacing: 0.04em;
+    }
+
+    .home-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      width: 100%;
+      max-width: 320px;
+    }
+
+    .home-btn {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 18px 22px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 1.05rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .home-btn:hover, .home-btn:active {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+      border-color: var(--accent);
+    }
+
+    .home-btn .icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .home-btn .icon svg { width: 22px; height: 22px; }
+
+    /* ========== LIBRARY ========== */
+    #library {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+    }
+
+    .lib-header {
+      padding: 16px 20px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+
+    .lib-header h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: none;
+      background: transparent;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .icon-btn:hover { background: var(--accent-soft); }
+    .icon-btn svg { width: 22px; height: 22px; }
+
+    .lib-tabs {
+      display: flex;
+      padding: 12px 20px 0;
+      gap: 8px;
+      background: var(--bg-card);
+    }
+
+    .lib-tab {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      font-weight: 500;
+      border-radius: 10px 10px 0 0;
+      cursor: pointer;
+      position: relative;
+      transition: color 0.2s;
+    }
+
+    .lib-tab.active {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .lib-tab.active::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 20%;
+      right: 20%;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 3px 3px 0 0;
+    }
+
+    .lib-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px 80px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .lib-empty {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .lib-empty svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+
+    .book-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .book-card:hover {
+      border-color: var(--accent);
+      transform: translateX(4px);
+    }
+
+    .book-cover {
+      width: 48px;
+      height: 64px;
+      border-radius: 6px;
+      background: linear-gradient(145deg, var(--accent-soft), var(--accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      flex-shrink: 0;
+      font-size: 1.2rem;
+      font-weight: 700;
+    }
+
+    .book-info { flex: 1; min-width: 0; }
+    .book-title {
+      font-weight: 600;
+      font-size: 1rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 4px;
+    }
+    .book-meta {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .book-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .book-actions button {
+      width: 36px;
+      height: 36px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .book-actions button:hover { background: rgba(255,80,80,0.12); color: #e05050; }
+
+    /* ========== READER ========== */
+    #reader {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background: var(--bg);
+    }
+
+    .reader-toolbar {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      padding-top: max(10px, env(safe-area-inset-top));
+      background: rgba(var(--bg-rgb, 247,245,240), 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s;
+      transform: translateY(0);
+    }
+
+    .dark .reader-toolbar {
+      background: rgba(15,15,18,0.92);
+    }
+
+    .reader-toolbar.hidden-bar {
+      transform: translateY(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .toolbar-left, .toolbar-right {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .toolbar-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      max-width: 40vw;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--text-secondary);
+    }
+
+    #content-wrap {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 80px 20px 100px;
+      scroll-behavior: smooth;
+    }
+
+    #content {
+      max-width: var(--content-width);
+      margin: 0 auto;
+      font-family: var(--font-serif);
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+      letter-spacing: var(--letter-spacing);
+      color: var(--text);
+    }
+
+    #content.font-serif {
+      font-family: "Noto Serif KR", "Apple Myungjo", "Nanum Myeongjo", "Batang", Georgia, serif !important;
+    }
+
+    #content.font-sans {
+      font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif !important;
+    }
+
+    /* Modern millennial typography */
+    #content h1 {
+      font-size: 1.9em;
+      font-weight: 700;
+      margin: 2em 0 0.9em;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      border-bottom: 2px solid var(--accent);
+      padding-bottom: 0.35em;
+      line-height: 1.35;
+    }
+
+    #content h2 {
+      font-size: 1.4em;
+      font-weight: 650;
+      margin: 2.2em 0 1em;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      line-height: 1.4;
+      padding-top: 0.4em;
+    }
+
+    #content h2::before {
+      content: "";
+      display: block;
+      width: 28px;
+      height: 3px;
+      background: var(--accent);
+      border-radius: 2px;
+      margin-bottom: 10px;
+    }
+
+    #content h3 {
+      font-size: 1.15em;
+      font-weight: 600;
+      margin: 1.6em 0 0.7em;
+      color: var(--text);
+    }
+
+    #content .book-title-block {
+      text-align: center;
+      margin: 1.5em 0 2.5em;
+      padding: 1.5em 1em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #content .book-title-block h1 {
+      border: none;
+      margin: 0 0 0.4em;
+      font-size: 1.75em;
+    }
+
+    #content .book-title-block .author {
+      font-size: 0.95em;
+      color: var(--text-secondary);
+      font-family: var(--font-body);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    #content p {
+      margin-bottom: 1.35em;
+      text-align: justify;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      text-indent: 0.9em;
+    }
+
+    #content h1 + p,
+    #content h2 + p,
+    #content h3 + p,
+    #content .book-title-block + p {
+      text-indent: 0;
+    }
+
+    #content blockquote,
+    #content .dialogue {
+      margin: 1.5em 0;
+      padding: 1em 1.25em;
+      background: var(--accent-soft);
+      border: none;
+      border-left: 3px solid var(--accent);
+      border-radius: 0 14px 14px 0;
+      font-style: normal;
+      color: var(--text);
+      text-indent: 0 !important;
+    }
+
+    /* Prevent double border if nested */
+    #content blockquote blockquote,
+    #content .dialogue .dialogue,
+    #content blockquote .dialogue {
+      border-left: none;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+    }
+
+    #content blockquote p,
+    #content .dialogue p {
+      margin-bottom: 0.35em;
+      text-indent: 0;
+      text-align: left;
+    }
+
+    #content hr {
+      border: none;
+      height: 1px;
+      background: var(--border);
+      margin: 2.8em 0;
+    }
+
+    #content .chapter-sep {
+      text-align: center;
+      margin: 2.5em 0 1.5em;
+      color: var(--accent);
+      letter-spacing: 0.3em;
+      font-size: 0.9em;
+      opacity: 0.7;
+    }
+
+    /* TOC Sidebar */
+    #toc-panel {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: min(320px, 85vw);
+      background: var(--bg-card);
+      border-right: 1px solid var(--border);
+      z-index: 60;
+      transform: translateX(-100%);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 8px 0 32px rgba(0,0,0,0.15);
+    }
+
+    #toc-panel.open { transform: translateX(0); }
+
+    .toc-header {
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+
+    .toc-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .toc-item {
+      padding: 12px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 0.95rem;
+      color: var(--text);
+      transition: background 0.15s;
+      margin-bottom: 2px;
+    }
+
+    .toc-item:hover, .toc-item.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+
+    .toc-item.level-2 { padding-left: 28px; font-size: 0.9rem; }
+    .toc-item.level-3 { padding-left: 42px; font-size: 0.85rem; color: var(--text-secondary); }
+
+    /* Settings Panel */
+    #settings-panel {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      border-radius: 20px 20px 0 0;
+      z-index: 55;
+      transform: translateY(100%);
+      transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+      padding: 20px 20px 32px;
+      max-height: 70vh;
+      overflow-y: auto;
+      box-shadow: 0 -8px 32px rgba(0,0,0,0.12);
+    }
+
+    #settings-panel.open { transform: translateY(0); }
+
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .settings-row label {
+      font-size: 0.95rem;
+      font-weight: 500;
+    }
+
+    .settings-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .seg-btn {
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .seg-btn.active {
+      background: var(--accent);
+      color: #0f0f12;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+
+    .range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      max-width: 200px;
+    }
+
+    .range-wrap input[type=range] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+
+    /* TTS bar */
+    .tts-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px;
+      padding-bottom: max(12px, env(safe-area-inset-bottom));
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 40;
+      transform: translateY(100%);
+      transition: transform 0.3s;
+    }
+
+    .tts-bar.visible { transform: translateY(0); }
+
+    .tts-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: none;
+      background: var(--accent);
+      color: #0f0f12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .tts-btn.secondary {
+      background: var(--accent-soft);
+      color: var(--accent);
+      width: 40px;
+      height: 40px;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: var(--bg-card);
+      border-radius: 20px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 80vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      transform: scale(0.95);
+      transition: transform 0.25s;
+    }
+
+    .modal-overlay.open .modal { transform: scale(1); }
+
+    .modal-header {
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 1.1rem;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-body textarea {
+      width: 100%;
+      min-height: 200px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    .modal-footer {
+      padding: 14px 20px;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      border: none;
+      font-size: 0.95rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #0f0f12;
+    }
+
+    .btn-primary:hover { filter: brightness(1.08); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    .btn-ghost:hover { background: var(--accent-soft); }
+
+    /* Overlay for TOC */
+    .panel-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 55;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+
+    .panel-overlay.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    /* Loading */
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+
+    .loading-overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Progress bar */
+    .progress-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      background: var(--accent);
+      width: 0%;
+      z-index: 45;
+      transition: width 0.15s;
+    }
+
+    /* File input hidden */
+    #file-input { display: none; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--bg-card);
+      color: var(--text);
+      padding: 12px 20px;
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      z-index: 300;
+      opacity: 0;
+      transition: all 0.3s;
+      pointer-events: none;
+      font-size: 0.9rem;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- HOME -->
+    <section id="home">
+      <div class="logo">
+        <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M10 8h18c6 0 10 4 10 10v20c0 3-2 5-5 5H14c-3 0-5-2-5-5V13c0-3 2-5 5-5z" fill="#c9a66b" opacity="0.9"/>
+          <path d="M13 11h14c4 0 7 3 7 7v18c0 2-1.5 3.5-3.5 3.5H16.5c-2 0-3.5-1.5-3.5-3.5V14.5c0-2 1.5-3.5 3.5-3.5z" fill="#0f0f12"/>
+          <path d="M17 18h12M17 24h9M17 30h11" stroke="#c9a66b" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 class="app-name">Lumina</h1>
+      <p class="app-tagline">프리미엄 한글 독서</p>
+      <div class="home-actions">
+        <button class="home-btn" id="btn-library">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h6"/></svg>
+          </span>
+          <span>서재</span>
+        </button>
+        <button class="home-btn" id="btn-paste">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>
+          </span>
+          <span>텍스트 붙여넣기</span>
+        </button>
+        <button class="home-btn" id="btn-open">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/></svg>
+          </span>
+          <span>파일 열기</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- LIBRARY -->
+    <section id="library" class="hidden">
+      <div class="lib-header">
+        <button class="icon-btn" id="lib-back" title="홈">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <h1>서재</h1>
+        <button class="icon-btn" id="lib-add" title="파일 추가">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+      <div class="lib-tabs">
+        <button class="lib-tab active" data-tab="reading">읽는 중</button>
+        <button class="lib-tab" data-tab="finished">다 읽음</button>
+      </div>
+      <div class="lib-list" id="lib-list">
+        <!-- dynamic -->
+      </div>
+    </section>
+
+    <!-- READER -->
+    <section id="reader" class="hidden">
+      <div class="reader-toolbar" id="reader-toolbar">
+        <div class="toolbar-left">
+          <button class="icon-btn" id="reader-back" title="뒤로">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-toc" title="목차">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          </button>
+        </div>
+        <div class="toolbar-title" id="reader-title">제목</div>
+        <div class="toolbar-right">
+          <button class="icon-btn" id="btn-tts" title="읽어주기">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+          </button>
+          <button class="icon-btn" id="btn-settings" title="설정">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-overlay" id="panel-overlay"></div>
+
+      <aside id="toc-panel">
+        <div class="toc-header">
+          <span>목차</span>
+          <button class="icon-btn" id="toc-close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="toc-list" id="toc-list"></div>
+      </aside>
+
+      <div id="content-wrap">
+        <article id="content"></article>
+      </div>
+
+      <div class="progress-bar" id="progress-bar"></div>
+
+      <div class="tts-bar" id="tts-bar">
+        <button class="tts-btn secondary" id="tts-stop" title="정지">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+        </button>
+        <button class="tts-btn" id="tts-play" title="재생/일시정지">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="22" height="22" id="tts-icon"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+      </div>
+
+      <div id="settings-panel">
+        <div class="settings-row">
+          <label>글꼴</label>
+          <div class="settings-controls">
+            <button class="seg-btn active" data-font="serif">명조</button>
+            <button class="seg-btn" data-font="sans">고딕</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>크기</label>
+          <div class="range-wrap">
+            <span style="font-size:0.8rem">가</span>
+            <input type="range" id="font-size" min="14" max="28" value="18" step="1">
+            <span style="font-size:1.2rem">가</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>자간</label>
+          <div class="range-wrap">
+            <span style="letter-spacing:-0.05em">가</span>
+            <input type="range" id="letter-spacing" min="-2" max="8" value="2" step="1">
+            <span style="letter-spacing:0.1em">가</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>줄간격</label>
+          <div class="range-wrap">
+            <span>좁</span>
+            <input type="range" id="line-height" min="140" max="240" value="195" step="5">
+            <span>넓</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>나이트 모드</label>
+          <div class="settings-controls">
+            <button class="seg-btn" id="btn-night" data-mode="light">라이트</button>
+            <button class="seg-btn" data-mode="dark">다크</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <label>완료 표시</label>
+          <div class="settings-controls">
+            <button class="btn btn-primary" id="btn-mark-finished" style="font-size:0.85rem;padding:8px 14px">다 읽음으로 표시</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Paste Modal -->
+  <div class="modal-overlay" id="paste-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <span>텍스트 붙여넣기</span>
+        <button class="icon-btn" id="paste-close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <textarea id="paste-text" placeholder="여기에 텍스트를 붙여넣으세요..."></textarea>
+        <input type="text" id="paste-title" placeholder="제목 (선택)" style="width:100%;margin-top:12px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;background:var(--bg);color:var(--text);font-size:0.95rem;">
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="paste-cancel">취소</button>
+        <button class="btn btn-primary" id="paste-ok">읽기 시작</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="file-input" accept=".txt,.docx,.pdf,.epub,.md,.html,.htm,text/plain,application/pdf,application/epub+zip,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/markdown,text/html">
+
+  <div class="loading-overlay" id="loading">
+    <div class="spinner"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ========== CONFIG & STATE ==========
+    const APP_NAME = "Lumina";
+    const STORAGE_KEY = "lumina_library_v1";
+    const SETTINGS_KEY = "lumina_settings_v1";
+
+    let state = {
+      library: [],          // {id, title, content, type, progress, scrollY, finished, addedAt, lastRead}
+      currentBook: null,
+      currentTab: "reading",
+      settings: {
+        font: "serif",
+        fontSize: 18,
+        letterSpacing: 2,
+        lineHeight: 195,
+        dark: false
+      },
+      tts: {
+        speaking: false,
+        paused: false,
+        utterance: null
+      },
+      lastScrollY: 0,
+      toolbarVisible: true
+    };
+
+    // ========== UTILS ==========
+    function $(sel) { return document.querySelector(sel); }
+    function $$(sel) { return document.querySelectorAll(sel); }
+
+    function toast(msg, ms = 2200) {
+      const t = $("#toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), ms);
+    }
+
+    function showLoading(v) {
+      $("#loading").classList.toggle("show", v);
+    }
+
+    function uid() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    }
+
+    function saveLibrary() {
+      try {
+        // Store only metadata + short content preview for large books; full content kept in memory/IndexedDB fallback to localStorage
+        const light = state.library.map(b => ({
+          id: b.id,
+          title: b.title,
+          type: b.type,
+          progress: b.progress,
+          scrollY: b.scrollY,
+          finished: b.finished,
+          addedAt: b.addedAt,
+          lastRead: b.lastRead,
+          content: b.content // full for simplicity; for very large use IDB in future
+        }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(light));
+      } catch (e) {
+        console.warn("Storage quota", e);
+        toast("저장 공간 부족. 일부 책만 유지됩니다.");
+      }
+    }
+
+    function loadLibrary() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) state.library = JSON.parse(raw);
+      } catch (e) { state.library = []; }
+    }
+
+    function saveSettings() {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+    }
+
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem(SETTINGS_KEY);
+        if (raw) Object.assign(state.settings, JSON.parse(raw));
+      } catch {}
+      applySettings();
+    }
+
+    function applySettings() {
+      const s = state.settings;
+      document.documentElement.style.setProperty("--font-size", s.fontSize + "px");
+      document.documentElement.style.setProperty("--letter-spacing", (s.letterSpacing / 100) + "em");
+      document.documentElement.style.setProperty("--line-height", s.lineHeight / 100);
+      document.body.classList.toggle("dark", s.dark);
+
+      const content = $("#content");
+      if (content) {
+        content.classList.remove("font-serif", "font-sans");
+        content.classList.add(s.font === "serif" ? "font-serif" : "font-sans");
+        content.style.fontFamily = ""; // clear any old inline style
+      }
+
+      // UI sync
+      $$(".seg-btn[data-font]").forEach(b => b.classList.toggle("active", b.dataset.font === s.font));
+      $$(".seg-btn[data-mode]").forEach(b => b.classList.toggle("active", (b.dataset.mode === "dark") === s.dark));
+      $("#font-size").value = s.fontSize;
+      $("#letter-spacing").value = s.letterSpacing;
+      $("#line-height").value = s.lineHeight;
+    }
+
+    // ========== ENCODING ==========
+    async function decodeText(buffer) {
+      const encodings = ["utf-8", "euc-kr", "windows-1252", "iso-8859-1"];
+      for (const enc of encodings) {
+        try {
+          const dec = new TextDecoder(enc, { fatal: true });
+          const text = dec.decode(buffer);
+          // Heuristic: if mostly replacement chars, try next
+          if ((text.match(/\uFFFD/g) || []).length > text.length * 0.05) continue;
+          return text;
+        } catch {
+          continue;
+        }
+      }
+      // Fallback non-fatal
+      return new TextDecoder("utf-8").decode(buffer);
+    }
+
+    // ========== FILE PARSERS ==========
+    async function parseTxt(file) {
+      const buf = await file.arrayBuffer();
+      return await decodeText(buf);
+    }
+
+    async function parseMd(file) {
+      const text = await parseTxt(file);
+      return marked.parse(text);
+    }
+
+    async function parseHtml(file) {
+      const text = await parseTxt(file);
+      // Extract body if full document
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, "text/html");
+      const body = doc.body;
+      return body ? body.innerHTML : text;
+    }
+
+    async function parseDocx(file) {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+      return result.value;
+    }
+
+    async function parsePdf(file) {
+      if (!window.pdfjsLib) throw new Error("PDF.js 로드 실패");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      let fullText = "";
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        // Group by approximate Y position to recover lines
+        const lines = [];
+        let currentY = null;
+        let currentLine = [];
+        const items = content.items.filter(it => it.str && it.str.trim());
+        // Sort by Y (desc) then X
+        items.sort((a, b) => {
+          const ya = a.transform ? a.transform[5] : 0;
+          const yb = b.transform ? b.transform[5] : 0;
+          if (Math.abs(ya - yb) > 2) return yb - ya;
+          const xa = a.transform ? a.transform[4] : 0;
+          const xb = b.transform ? b.transform[4] : 0;
+          return xa - xb;
+        });
+        for (const item of items) {
+          const y = item.transform ? item.transform[5] : 0;
+          if (currentY === null || Math.abs(y - currentY) < 3) {
+            currentLine.push(item.str);
+            currentY = y;
+          } else {
+            if (currentLine.length) lines.push(currentLine.join("").trim());
+            currentLine = [item.str];
+            currentY = y;
+          }
+        }
+        if (currentLine.length) lines.push(currentLine.join("").trim());
+        fullText += lines.filter(Boolean).join("\n") + "\n\n";
+      }
+      return textToHtml(fullText);
+    }
+
+    async function parseEpub(file) {
+      const zip = await JSZip.loadAsync(file);
+      // Find container
+      const container = await zip.file("META-INF/container.xml").async("string");
+      const opfPathMatch = container.match(/full-path=["']([^"']+)["']/);
+      if (!opfPathMatch) throw new Error("EPUB 구조 오류");
+      const opfPath = opfPathMatch[1];
+      const opfDir = opfPath.substring(0, opfPath.lastIndexOf("/") + 1);
+      const opf = await zip.file(opfPath).async("string");
+
+      // Parse spine & manifest simply with regex (robust enough)
+      const manifest = {};
+      const itemRegex = /<item[^>]+id=["']([^"']+)["'][^>]+href=["']([^"']+)["'][^>]*(?:media-type=["']([^"']+)["'])?/gi;
+      let m;
+      while ((m = itemRegex.exec(opf)) !== null) {
+        manifest[m[1]] = { href: m[2], type: m[3] || "" };
+      }
+      // also reverse attributes order
+      const itemRegex2 = /<item[^>]+href=["']([^"']+)["'][^>]+id=["']([^"']+)["']/gi;
+      while ((m = itemRegex2.exec(opf)) !== null) {
+        if (!manifest[m[2]]) manifest[m[2]] = { href: m[1], type: "" };
+      }
+
+      const spine = [];
+      const spineRegex = /<itemref[^>]+idref=["']([^"']+)["']/gi;
+      while ((m = spineRegex.exec(opf)) !== null) {
+        spine.push(m[1]);
+      }
+
+      let htmlParts = [];
+      for (const id of spine) {
+        const item = manifest[id];
+        if (!item) continue;
+        const path = opfDir + item.href;
+        const entry = zip.file(path) || zip.file(decodeURIComponent(path));
+        if (!entry) continue;
+        let chapterHtml = await entry.async("string");
+        // Strip scripts, styles somewhat
+        chapterHtml = chapterHtml
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/<style[\s\S]*?<\/style>/gi, "");
+        // Extract body
+        const bodyMatch = chapterHtml.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+        if (bodyMatch) chapterHtml = bodyMatch[1];
+        htmlParts.push(chapterHtml);
+      }
+      return htmlParts.join("<hr>");
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    async function parseFile(file) {
+      const name = file.name.toLowerCase();
+      const ext = name.split(".").pop();
+      showLoading(true);
+      try {
+        let html = "";
+        let title = file.name.replace(/\.[^.]+$/, "");
+        if (ext === "txt") {
+          const text = await parseTxt(file);
+          html = textToHtml(text);
+        } else if (ext === "md" || ext === "markdown") {
+          html = await parseMd(file);
+        } else if (ext === "html" || ext === "htm") {
+          html = await parseHtml(file);
+        } else if (ext === "docx") {
+          html = await parseDocx(file);
+        } else if (ext === "pdf") {
+          html = await parsePdf(file);
+        } else if (ext === "epub") {
+          html = await parseEpub(file);
+        } else {
+          // try as text
+          const text = await parseTxt(file);
+          html = textToHtml(text);
+        }
+        // Post-process: dialogues, clean
+        html = enhanceHtml(html);
+        return { title, html, type: ext };
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Korean / novel chapter patterns (broad)
+    const CHAPTER_RE = /^(?:제\s*)?(\d+)\s*[장회편부절화]\s*[\.．:：]?\s*(.*)$/i;
+    const CHAPTER_RE2 = /^(?:CHAPTER|Chapter|CHAPTER)\s*(\d+)\s*[\.．:：-]?\s*(.*)$/i;
+    const CHAPTER_RE3 = /^(\d+)\s*[.．、]\s+(.{2,60})$/;
+    const CHAPTER_INLINE = /(?:^|[\s=|｜\-–—])((?:제\s*)?\d+\s*[장회편부절화])(?:\s|$|[\.．:：])/i;
+    const TITLE_MARKERS = /[=|｜]|\s{2,}/;
+
+    function isChapterLine(t) {
+      if (!t || t.length > 90) return false;
+      if (CHAPTER_RE.test(t) || CHAPTER_RE2.test(t) || CHAPTER_RE3.test(t)) return true;
+      if (/^(◆|■|●|※|★|▷|▶)\s*.{1,60}$/.test(t)) return true;
+      if (/^[【\[]\s*.{1,50}\s*[】\]]$/.test(t)) return true;
+      return false;
+    }
+
+    function isDialogue(text) {
+      const t = text.trim();
+      if (!t) return false;
+      // Opening quote styles common in Korean novels
+      if (/^[「『“"‘'""]/.test(t)) return true;
+      if (/^[—–―-]{1,2}\s*[「『“"‘']?/.test(t)) return true;
+      // Closing quote at end
+      if (/[」』”"’'""]\s*$/.test(t) && t.length < 280) return true;
+      // Short quoted speech
+      if (t.length < 120 && /[「『“"].+[」』”"]/.test(t)) return true;
+      return false;
+    }
+
+    function normalizeRawText(text) {
+      // Unify newlines, collapse excessive spaces but keep structure
+      let t = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      // Fix common PDF artifacts: soft hyphens, weird spaces
+      t = t.replace(/\u00AD/g, "").replace(/[\u200B\u200C\u200D\uFEFF]/g, "");
+      t = t.replace(/[ \t]+\n/g, "\n").replace(/\n[ \t]+/g, "\n");
+      // Collapse 3+ blank lines to 2
+      t = t.replace(/\n{3,}/g, "\n\n");
+      return t;
+    }
+
+    /**
+     * Split a long continuous string into paragraphs using Korean sentence endings
+     * and dialogue boundaries. Avoids one giant wall of text.
+     */
+    function splitIntoParagraphs(raw) {
+      const text = raw.replace(/\s+/g, " ").trim();
+      if (!text) return [];
+
+      // If already has reasonable line breaks, prefer them later
+      const parts = [];
+      // Split on sentence end + space, or dialogue close + space, keeping delimiter
+      // Korean endings: 다. 요. 까? 네. 죠. ! ? 。
+      const re = /([^.!?…。？！]+[.!?…。？！]+["」』”']?\s*|[「『“"].+?[」』”"]\s*)/g;
+      let m;
+      let buf = "";
+      let lastIndex = 0;
+      while ((m = re.exec(text)) !== null) {
+        buf += m[0];
+        // Flush when buffer is long enough or ends with dialogue
+        const trimmed = buf.trim();
+        const endsDialogue = /[」』”"']\s*$/.test(trimmed);
+        if (trimmed.length > 80 || endsDialogue) {
+          if (trimmed) parts.push(trimmed);
+          buf = "";
+        }
+        lastIndex = re.lastIndex;
+      }
+      // Remainder
+      const rest = text.slice(lastIndex).trim();
+      if (rest) buf += rest;
+      if (buf.trim()) parts.push(buf.trim());
+
+      // Merge very short fragments into previous
+      const merged = [];
+      for (const p of parts) {
+        if (merged.length && p.length < 25 && !isDialogue(p) && !isChapterLine(p)) {
+          merged[merged.length - 1] += " " + p;
+        } else {
+          merged.push(p);
+        }
+      }
+      return merged.length ? merged : [text];
+    }
+
+    function extractTitleAuthorChapter(firstChunk) {
+      // Patterns like: 제목(영문) = 작가 = 1장 ...
+      // or 제목 - 작가
+      let title = null, author = null, chapter = null, bodyStart = firstChunk;
+
+      // Try "Title = Author = 1장 Rest"
+      const eqParts = firstChunk.split(/\s*=\s*/);
+      if (eqParts.length >= 2) {
+        title = eqParts[0].trim();
+        if (eqParts.length >= 3) {
+          author = eqParts[1].trim();
+          const rest = eqParts.slice(2).join(" = ").trim();
+          const chMatch = rest.match(CHAPTER_INLINE) || rest.match(CHAPTER_RE) || rest.match(/^(\d+\s*[장회편])/);
+          if (chMatch) {
+            chapter = (chMatch[1] || chMatch[0]).trim();
+            bodyStart = rest.replace(chMatch[0], "").trim();
+          } else {
+            bodyStart = rest;
+          }
+        } else {
+          // Title = Author or Title = Chapter
+          const second = eqParts[1].trim();
+          if (isChapterLine(second) || CHAPTER_INLINE.test(second)) {
+            chapter = second;
+            bodyStart = "";
+          } else {
+            author = second;
+            bodyStart = "";
+          }
+        }
+      }
+      return { title, author, chapter, bodyStart };
+    }
+
+    function textToHtml(text) {
+      text = normalizeRawText(text);
+      const lines = text.split("\n");
+      let html = "";
+      let paraBuf = [];
+      let titleBlockDone = false;
+
+      const flushPara = () => {
+        if (!paraBuf.length) return;
+        const joined = paraBuf.join(" ").replace(/\s+/g, " ").trim();
+        paraBuf = [];
+        if (!joined) return;
+
+        // First block: try title / author / chapter extraction
+        if (!titleBlockDone && joined.length < 400) {
+          const meta = extractTitleAuthorChapter(joined);
+          if (meta.title && (meta.author || meta.chapter)) {
+            html += `<div class="book-title-block"><h1>${escapeHtml(meta.title)}</h1>`;
+            if (meta.author) html += `<div class="author">${escapeHtml(meta.author)}</div>`;
+            html += `</div>`;
+            if (meta.chapter) html += `<h2>${escapeHtml(meta.chapter)}</h2>`;
+            titleBlockDone = true;
+            if (meta.bodyStart) {
+              const sub = splitIntoParagraphs(meta.bodyStart);
+              for (const s of sub) emitBlock(s);
+            }
+            return;
+          }
+        }
+
+        // Split long continuous text
+        if (joined.length > 220 && !isDialogue(joined) && !isChapterLine(joined)) {
+          const pieces = splitIntoParagraphs(joined);
+          for (const s of pieces) emitBlock(s);
+        } else {
+          emitBlock(joined);
+        }
+      };
+
+      const emitBlock = (t) => {
+        if (!t) return;
+        if (isChapterLine(t)) {
+          html += `<h2>${escapeHtml(t)}</h2>`;
+          return;
+        }
+        if (isDialogue(t)) {
+          html += `<blockquote class="dialogue"><p>${escapeHtml(t)}</p></blockquote>`;
+          return;
+        }
+        html += `<p>${escapeHtml(t)}</p>`;
+      };
+
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t) {
+          flushPara();
+          continue;
+        }
+        // Standalone chapter line
+        if (isChapterLine(t)) {
+          flushPara();
+          html += `<h2>${escapeHtml(t)}</h2>`;
+          titleBlockDone = true;
+          continue;
+        }
+        // Dialogue line
+        if (isDialogue(t) && t.length < 350) {
+          flushPara();
+          html += `<blockquote class="dialogue"><p>${escapeHtml(t)}</p></blockquote>`;
+          continue;
+        }
+        // Inline chapter mid-line: "... 1장 폴릿 양은"
+        const inlineCh = t.match(CHAPTER_INLINE);
+        if (inlineCh && t.length > 30) {
+          const idx = t.indexOf(inlineCh[0]);
+          const before = t.slice(0, idx).trim();
+          const after = t.slice(idx + inlineCh[0].length).trim();
+          if (before) {
+            paraBuf.push(before);
+            flushPara();
+          } else {
+            flushPara();
+          }
+          html += `<h2>${escapeHtml(inlineCh[1].trim())}</h2>`;
+          titleBlockDone = true;
+          if (after) paraBuf.push(after);
+          continue;
+        }
+        paraBuf.push(t);
+      }
+      flushPara();
+      return html || `<p>${escapeHtml(text)}</p>`;
+    }
+
+    function enhanceHtml(html) {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      // Promote dialogues still in bare <p> only (skip if already inside blockquote)
+      div.querySelectorAll("p").forEach(p => {
+        if (p.closest("blockquote, .dialogue")) return;
+        const t = p.textContent.trim();
+        if (isDialogue(t) && t.length < 320) {
+          const bq = document.createElement("blockquote");
+          bq.className = "dialogue";
+          bq.innerHTML = `<p>${p.innerHTML}</p>`;
+          p.replaceWith(bq);
+        }
+      });
+      // Promote short chapter-like paragraphs to h2
+      div.querySelectorAll("p").forEach(p => {
+        if (p.closest("blockquote, .dialogue, h1, h2, h3")) return;
+        const t = p.textContent.trim();
+        if (isChapterLine(t)) {
+          const h = document.createElement("h2");
+          h.textContent = t;
+          p.replaceWith(h);
+        }
+      });
+      return div.innerHTML;
+    }
+
+    // ========== TOC ==========
+    function buildToc(html) {
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      const headings = div.querySelectorAll("h1, h2, h3, h4");
+      const toc = [];
+      if (headings.length >= 2) {
+        headings.forEach((h, i) => {
+          const id = "toc-" + i;
+          h.id = id;
+          toc.push({
+            id,
+            text: h.textContent.trim().slice(0, 60),
+            level: parseInt(h.tagName[1])
+          });
+        });
+      } else {
+        // Arbitrary TOC: split by length or paragraphs
+        const paras = div.querySelectorAll("p, blockquote");
+        const step = Math.max(8, Math.floor(paras.length / 12));
+        for (let i = 0; i < paras.length; i += step) {
+          const p = paras[i];
+          const id = "toc-arb-" + i;
+          p.id = id;
+          const preview = (p.textContent || "").trim().slice(0, 40) || `구간 ${Math.floor(i / step) + 1}`;
+          toc.push({ id, text: preview + "…", level: 2 });
+        }
+        if (toc.length === 0) {
+          toc.push({ id: "top", text: "본문 시작", level: 1 });
+        }
+      }
+      // Re-inject ids into original by returning modified html + toc
+      return { toc, html: div.innerHTML };
+    }
+
+    // ========== LIBRARY UI ==========
+    function renderLibrary() {
+      const list = $("#lib-list");
+      const items = state.library.filter(b =>
+        state.currentTab === "reading" ? !b.finished : b.finished
+      ).sort((a, b) => (b.lastRead || b.addedAt) - (a.lastRead || a.addedAt));
+
+      if (items.length === 0) {
+        list.innerHTML = `
+          <div class="lib-empty">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            <p>${state.currentTab === "reading" ? "읽고 있는 책이 없습니다." : "다 읽은 책이 없습니다."}</p>
+            <p style="font-size:0.85rem;margin-top:8px">홈에서 파일을 열어보세요.</p>
+          </div>`;
+        return;
+      }
+
+      list.innerHTML = items.map(b => `
+        <div class="book-card" data-id="${b.id}">
+          <div class="book-cover">${(b.title || "?").charAt(0)}</div>
+          <div class="book-info">
+            <div class="book-title">${escapeHtml(b.title)}</div>
+            <div class="book-meta">${b.type?.toUpperCase() || "TEXT"} · ${formatDate(b.lastRead || b.addedAt)}${b.progress ? ` · ${Math.round(b.progress)}%` : ""}</div>
+          </div>
+          <div class="book-actions">
+            <button class="del-btn" data-id="${b.id}" title="삭제">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+            </button>
+          </div>
+        </div>
+      `).join("");
+
+      list.querySelectorAll(".book-card").forEach(card => {
+        card.addEventListener("click", (e) => {
+          if (e.target.closest(".del-btn")) return;
+          openBook(card.dataset.id);
+        });
+      });
+      list.querySelectorAll(".del-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteBook(btn.dataset.id);
+        });
+      });
+    }
+
+    function formatDate(ts) {
+      if (!ts) return "";
+      const d = new Date(ts);
+      return `${d.getMonth() + 1}/${d.getDate()}`;
+    }
+
+    function deleteBook(id) {
+      if (!confirm("이 책을 서재에서 삭제할까요?")) return;
+      state.library = state.library.filter(b => b.id !== id);
+      saveLibrary();
+      renderLibrary();
+      toast("삭제되었습니다.");
+    }
+
+    // ========== NAVIGATION ==========
+    function showScreen(id) {
+      ["home", "library", "reader"].forEach(s => {
+        $(`#${s}`).classList.toggle("hidden", s !== id);
+      });
+      if (id === "library") renderLibrary();
+    }
+
+    function openBook(id) {
+      const book = state.library.find(b => b.id === id);
+      if (!book) return;
+      state.currentBook = book;
+      book.lastRead = Date.now();
+      saveLibrary();
+
+      const { toc, html } = buildToc(book.content);
+      $("#content").innerHTML = html;
+      $("#reader-title").textContent = book.title;
+      renderToc(toc);
+      showScreen("reader");
+      applySettings();
+
+      // Restore scroll
+      requestAnimationFrame(() => {
+        const wrap = $("#content-wrap");
+        wrap.scrollTop = book.scrollY || 0;
+        updateProgress();
+      });
+
+      // Stop TTS if any
+      stopTTS();
+    }
+
+    function renderToc(toc) {
+      const list = $("#toc-list");
+      list.innerHTML = toc.map(t => `
+        <div class="toc-item level-${t.level}" data-id="${t.id}">${escapeHtml(t.text)}</div>
+      `).join("");
+      list.querySelectorAll(".toc-item").forEach(item => {
+        item.addEventListener("click", () => {
+          const el = document.getElementById(item.dataset.id);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+            closeToc();
+          }
+        });
+      });
+    }
+
+    function addToLibrary(title, content, type) {
+      const book = {
+        id: uid(),
+        title: title || "무제",
+        content,
+        type: type || "txt",
+        progress: 0,
+        scrollY: 0,
+        finished: false,
+        addedAt: Date.now(),
+        lastRead: Date.now()
+      };
+      state.library.unshift(book);
+      saveLibrary();
+      return book;
+    }
+
+    // ========== SCROLL / TOOLBAR ==========
+    function setupScroll() {
+      const wrap = $("#content-wrap");
+      let lastY = 0;
+      let ticking = false;
+
+      wrap.addEventListener("scroll", () => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            const y = wrap.scrollTop;
+            const dy = y - lastY;
+            const toolbar = $("#reader-toolbar");
+
+            if (y < 40) {
+              toolbar.classList.remove("hidden-bar");
+              state.toolbarVisible = true;
+            } else if (dy > 8 && state.toolbarVisible) {
+              toolbar.classList.add("hidden-bar");
+              state.toolbarVisible = false;
+              closeSettings();
+            } else if (dy < -8 && !state.toolbarVisible) {
+              toolbar.classList.remove("hidden-bar");
+              state.toolbarVisible = true;
+            }
+
+            lastY = y;
+            updateProgress();
+            // Save progress periodically
+            if (state.currentBook) {
+              state.currentBook.scrollY = y;
+              const max = wrap.scrollHeight - wrap.clientHeight;
+              state.currentBook.progress = max > 0 ? (y / max) * 100 : 0;
+            }
+            ticking = false;
+          });
+          ticking = true;
+        }
+      }, { passive: true });
+    }
+
+    function updateProgress() {
+      const wrap = $("#content-wrap");
+      const max = wrap.scrollHeight - wrap.clientHeight;
+      const pct = max > 0 ? (wrap.scrollTop / max) * 100 : 0;
+      $("#progress-bar").style.width = pct + "%";
+    }
+
+    // ========== TTS (System SpeechSynthesis) ==========
+    function startTTS() {
+      if (!window.speechSynthesis) {
+        toast("이 기기는 TTS를 지원하지 않습니다.");
+        return;
+      }
+      stopTTS();
+      const content = $("#content");
+      const text = content.innerText || content.textContent;
+      if (!text.trim()) return;
+
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ko-KR";
+      u.rate = 1.0;
+      u.pitch = 1.0;
+
+      // Prefer Korean voice
+      const voices = speechSynthesis.getVoices();
+      const ko = voices.find(v => v.lang.startsWith("ko"));
+      if (ko) u.voice = ko;
+
+      u.onend = () => {
+        state.tts.speaking = false;
+        state.tts.paused = false;
+        $("#tts-bar").classList.remove("visible");
+        updateTtsIcon();
+      };
+      u.onerror = () => {
+        state.tts.speaking = false;
+        $("#tts-bar").classList.remove("visible");
+      };
+
+      state.tts.utterance = u;
+      state.tts.speaking = true;
+      state.tts.paused = false;
+      speechSynthesis.speak(u);
+      $("#tts-bar").classList.add("visible");
+      updateTtsIcon();
+    }
+
+    function toggleTTS() {
+      if (!state.tts.speaking) {
+        startTTS();
+        return;
+      }
+      if (state.tts.paused) {
+        speechSynthesis.resume();
+        state.tts.paused = false;
+      } else {
+        speechSynthesis.pause();
+        state.tts.paused = true;
+      }
+      updateTtsIcon();
+    }
+
+    function stopTTS() {
+      if (window.speechSynthesis) {
+        speechSynthesis.cancel();
+      }
+      state.tts.speaking = false;
+      state.tts.paused = false;
+      state.tts.utterance = null;
+      $("#tts-bar").classList.remove("visible");
+      updateTtsIcon();
+    }
+
+    function updateTtsIcon() {
+      const icon = $("#tts-icon");
+      if (state.tts.speaking && !state.tts.paused) {
+        icon.innerHTML = '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>';
+      } else {
+        icon.innerHTML = '<path d="M8 5v14l11-7z"/>';
+      }
+    }
+
+    // Voices load async
+    if (window.speechSynthesis) {
+      speechSynthesis.onvoiceschanged = () => {};
+    }
+
+    // ========== PANELS ==========
+    function openToc() {
+      $("#toc-panel").classList.add("open");
+      $("#panel-overlay").classList.add("visible");
+      closeSettings();
+    }
+    function closeToc() {
+      $("#toc-panel").classList.remove("open");
+      $("#panel-overlay").classList.remove("visible");
+    }
+    function openSettings() {
+      $("#settings-panel").classList.add("open");
+      closeToc();
+    }
+    function closeSettings() {
+      $("#settings-panel").classList.remove("open");
+    }
+
+    // ========== INIT EVENTS ==========
+    function initEvents() {
+      // Home
+      $("#btn-library").addEventListener("click", () => showScreen("library"));
+      $("#btn-paste").addEventListener("click", () => {
+        $("#paste-modal").classList.add("open");
+        $("#paste-text").value = "";
+        $("#paste-title").value = "";
+      });
+      $("#btn-open").addEventListener("click", () => $("#file-input").click());
+      $("#lib-add").addEventListener("click", () => $("#file-input").click());
+
+      // Library
+      $("#lib-back").addEventListener("click", () => showScreen("home"));
+      $$(".lib-tab").forEach(tab => {
+        tab.addEventListener("click", () => {
+          $$(".lib-tab").forEach(t => t.classList.remove("active"));
+          tab.classList.add("active");
+          state.currentTab = tab.dataset.tab;
+          renderLibrary();
+        });
+      });
+
+      // File
+      $("#file-input").addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+          const { title, html, type } = await parseFile(file);
+          const book = addToLibrary(title, html, type);
+          openBook(book.id);
+          toast(`"${title}" 열림`);
+        } catch (err) {
+          console.error(err);
+          toast("파일을 열 수 없습니다: " + (err.message || "오류"));
+        }
+        e.target.value = "";
+      });
+
+      // Paste
+      $("#paste-close").addEventListener("click", () => $("#paste-modal").classList.remove("open"));
+      $("#paste-cancel").addEventListener("click", () => $("#paste-modal").classList.remove("open"));
+      $("#paste-ok").addEventListener("click", () => {
+        const text = $("#paste-text").value.trim();
+        if (!text) { toast("텍스트를 입력하세요."); return; }
+        const title = $("#paste-title").value.trim() || "붙여넣은 텍스트";
+        const html = textToHtml(text);
+        const book = addToLibrary(title, html, "txt");
+        $("#paste-modal").classList.remove("open");
+        openBook(book.id);
+      });
+
+      // Reader
+      $("#reader-back").addEventListener("click", () => {
+        if (state.currentBook) {
+          saveLibrary();
+        }
+        stopTTS();
+        closeToc();
+        closeSettings();
+        showScreen("library");
+      });
+
+      $("#btn-toc").addEventListener("click", () => {
+        if ($("#toc-panel").classList.contains("open")) closeToc();
+        else openToc();
+      });
+      $("#toc-close").addEventListener("click", closeToc);
+      $("#panel-overlay").addEventListener("click", () => {
+        closeToc();
+        closeSettings();
+      });
+
+      $("#btn-settings").addEventListener("click", () => {
+        if ($("#settings-panel").classList.contains("open")) closeSettings();
+        else openSettings();
+      });
+
+      $("#btn-tts").addEventListener("click", () => {
+        if (state.tts.speaking) toggleTTS();
+        else startTTS();
+      });
+      $("#tts-play").addEventListener("click", toggleTTS);
+      $("#tts-stop").addEventListener("click", stopTTS);
+
+      // Settings controls
+      $$(".seg-btn[data-font]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.settings.font = btn.dataset.font;
+          applySettings();
+          saveSettings();
+        });
+      });
+      $$(".seg-btn[data-mode]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.settings.dark = btn.dataset.mode === "dark";
+          applySettings();
+          saveSettings();
+        });
+      });
+      $("#font-size").addEventListener("input", (e) => {
+        state.settings.fontSize = +e.target.value;
+        applySettings();
+        saveSettings();
+      });
+      $("#letter-spacing").addEventListener("input", (e) => {
+        state.settings.letterSpacing = +e.target.value;
+        applySettings();
+        saveSettings();
+      });
+      $("#line-height").addEventListener("input", (e) => {
+        state.settings.lineHeight = +e.target.value;
+        applySettings();
+        saveSettings();
+      });
+      $("#btn-mark-finished").addEventListener("click", () => {
+        if (state.currentBook) {
+          state.currentBook.finished = true;
+          state.currentBook.progress = 100;
+          saveLibrary();
+          toast("다 읽음으로 표시했습니다.");
+          closeSettings();
+        }
+      });
+
+      // Save on leave
+      window.addEventListener("beforeunload", () => {
+        if (state.currentBook) saveLibrary();
+      });
+    }
+
+    // ========== PWA SERVICE WORKER ==========
+    function registerSW() {
+      if (!("serviceWorker" in navigator)) return;
+      const swCode = `
+        const CACHE = "lumina-v1";
+        const ASSETS = ["./", "./index.html"];
+        self.addEventListener("install", e => {
+          e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+        });
+        self.addEventListener("activate", e => {
+          e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+        });
+        self.addEventListener("fetch", e => {
+          e.respondWith(
+            caches.match(e.request).then(r => r || fetch(e.request).then(res => {
+              if (e.request.url.startsWith(self.location.origin)) {
+                const clone = res.clone();
+                caches.open(CACHE).then(c => c.put(e.request, clone));
+              }
+              return res;
+            }).catch(() => caches.match("./index.html")))
+          );
+        });
+      `;
+      const blob = new Blob([swCode], { type: "application/javascript" });
+      const url = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(url).then(() => {
+        console.log("SW registered");
+      }).catch(err => console.warn("SW failed", err));
+    }
+
+    // ========== BOOT ==========
+    function boot() {
+      loadLibrary();
+      loadSettings();
+      initEvents();
+      setupScroll();
+      registerSW();
+      // Prefer dark if system
+      if (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches && !localStorage.getItem(SETTINGS_KEY)) {
+        state.settings.dark = true;
+        applySettings();
+      }
+    }
+
+    boot();
+  </script>
+</body>
+</html>
